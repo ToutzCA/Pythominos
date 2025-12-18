@@ -96,25 +96,25 @@ PIECE_COLORS = [
     COLOR_PINK, COLOR_PURPLE, COLOR_DARK_PURPLE, COLOR_BROWN
 ]
 
-# Piece patterns (12 pentomino-like pieces)
+# Piece patterns (12 pentomino-like pieces) - matching original Pythominos.py
 PIECE_PATTERNS = [
-    # Piece 1: I pentomino (5 cells in a line)
+    # Piece 1: I pentomino (5 cells in a vertical line)
     [[1], [1], [1], [1], [1]],
     
     # Piece 2: L pentomino
-    [[2, 2], [2, 0], [2, 0], [2, 0]],
+    [[2, 2], [2], [2], [2]],
     
     # Piece 3: T pentomino
-    [[3, 0], [3, 3], [3, 0], [3, 0]],
+    [[3], [3, 3], [3], [3]],
     
     # Piece 4: N pentomino
-    [[4, 0], [4, 4], [0, 4], [0, 4]],
+    [[4], [4, 4], [0, 4], [0, 4]],
     
     # Piece 5: Y pentomino
-    [[5, 0], [5, 0], [5, 5, 5]],
+    [[5], [5], [5, 5, 5]],
     
     # Piece 6: P pentomino
-    [[6, 0], [6, 6], [6, 6]],
+    [[6], [6, 6], [6, 6]],
     
     # Piece 7: Z pentomino
     [[7, 7], [0, 7], [7, 7]],
@@ -123,15 +123,15 @@ PIECE_PATTERNS = [
     [[8, 8], [0, 8], [0, 8, 8]],
     
     # Piece 9: U pentomino
-    [[9, 0], [9, 9, 9], [0, 9]],
+    [[9], [9, 9, 9], [0, 9]],
     
     # Piece 10: F pentomino
-    [[10, 10, 10], [0, 10, 0], [0, 10, 0]],
+    [[10, 10, 10], [0, 10], [0, 10]],
     
     # Piece 11: X pentomino
-    [[11, 0], [11, 11], [0, 11, 11]],
+    [[11], [11, 11], [0, 11, 11]],
     
-    # Piece 12: V pentomino
+    # Piece 12: V pentomino (cross shape)
     [[0, 12], [12, 12, 12], [0, 12]]
 ]
 
