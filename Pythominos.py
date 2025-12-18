@@ -77,7 +77,8 @@ class MainMenu:
             if pyxel.btnp(pyxel.KEY_X):
                 if musique:
                     pyxel.stop()
-                else :pyxel.playm(0,loop=True)
+                else:
+                    pyxel.playm(0, loop=True)
                 musique = not musique
             if pyxel.btnp(pyxel.KEY_C):
                 App(Credits())
@@ -101,7 +102,7 @@ class MainMenu:
                     new_game_board = Plateau_de_jeu(plateau=loaded_plateau_data, loaded_from_save=True)
                     App(new_game_board)
                 else:
-                    self.message2 = "Echec du chargement"
+                    self.message2 = "Pas de fichier de sauvegarde trouve."
 
     def draw(self):
         if self.parametres :
@@ -394,10 +395,10 @@ class Ecran_de_fin:
         for piece in self.pieces_cascade_liste.copy():
             x, y, _, angle, speed = piece
             dx = speed * math.cos(angle)
-            dy = -speed * math.sin(angle)
+            dy = speed * math.sin(angle)
             piece[0] += dx
-            piece[1] -= dy
-            if piece[1] < -self.piece_size:
+            piece[1] += dy
+            if piece[1] > height + self.piece_size:
                 self.pieces_cascade_liste.remove(piece)
 
     def ajouter_piece_cascade_chelem(self):
@@ -495,14 +496,10 @@ class Plateau_de_jeu:
             pyxel.playm(3,loop=True)
 
         self.liste_des_coordonnees_des_boutons = [(32*3,32*6),(32*4,32*6),(32*5,32*6),(32*6,32*6),(32*7,32*6),(32*8,32*6),(32*3,32*7),(32*4,32*7),(32*5,32*7),(32*6,32*7),(32*7,32*7),(32*8,32*7)]
-        
         self.menu_rapide = False
-
         self.alert_message = ""
         self.alert_timer = 0
         self.alert_duration = 50
-
-        self.save_filename = "../saves/katamino_save.json"
 
     def verif_victoire(self):
         for y in range(self.ligne):
@@ -513,6 +510,9 @@ class Plateau_de_jeu:
     def update(self):
         pyxel.mouse(True)
         global mode_grand_chelem, niveau_grand_chelem, pieces_selectionnees, etape, grand_chelem,musique
+        mx, my = pyxel.mouse_x, pyxel.mouse_y
+        grid_c = mx // self.cell_size
+        grid_r = my // self.cell_size
         
         if pyxel.btnr(pyxel.KEY_SPACE):
             pyxel.play(3,38)
@@ -530,7 +530,7 @@ class Plateau_de_jeu:
                     piece[2] = False
                     piece[0].retirer()
                     piece[0].cos_de_départ()
-                    pieces_selectionnees = []
+                pieces_selectionnees = []
                 App(MainMenu())
 
             if pyxel.btnp(pyxel.KEY_S):
@@ -544,6 +544,65 @@ class Plateau_de_jeu:
                 else :
                     pyxel.playm(3,loop=True)
                 musique = not musique
+            # In quick menu, ignore mouse dragging
+            self.dragging = False
+            return
+
+        # --- Mouse-driven selection (click on piece buttons) ---
+        if pyxel.btnp(pyxel.MOUSE_BUTTON_LEFT):
+            # Click on piece selection buttons area
+            mx, my = pyxel.mouse_x, pyxel.mouse_y
+            for btn_idx, (bx, by) in enumerate(self.liste_des_coordonnees_des_boutons):
+                if bx <= mx <= bx + 32 and by <= my <= by + 32:
+                    # Find if a playable piece has this numero
+                    for j, entry in enumerate(self.pieces_jouables):
+                        if entry[0].numero - 1 == btn_idx:
+                            self.index_piece_selectionnee = j
+                            self.piece_selectionnee = entry[0]
+                            break
+                    break
+
+        # --- Mouse drag to move piece on the grid ---
+        if self.piece_selectionnee is not None:
+            # Start drag if click on board area
+            if pyxel.btnp(pyxel.MOUSE_BUTTON_LEFT):
+                if 0 <= grid_r < self.ligne and 0 <= grid_c < self.cols:
+                    # pick up piece if needed and set initial drag offsets
+                    self.piece_selectionnee._begin_move_if_needed()
+                    coords = self.piece_selectionnee.cos_actuelles
+                    min_r = min(r for r, _ in coords)
+                    min_c = min(c for _, c in coords)
+                    self.drag_offset_r = grid_r - min_r
+                    self.drag_offset_c = grid_c - min_c
+                    self.dragging = True
+
+            # While dragging, follow mouse (snap to grid)
+            if self.dragging and pyxel.btn(pyxel.MOUSE_BUTTON_LEFT):
+                coords = self.piece_selectionnee.cos_actuelles
+                min_r = min(r for r, _ in coords)
+                min_c = min(c for _, c in coords)
+                target_min_r = grid_r - self.drag_offset_r
+                target_min_c = grid_c - self.drag_offset_c
+                dy = target_min_r - min_r
+                dx = target_min_c - min_c
+                if dx != 0 or dy != 0:
+                    self.Dplateau, _ = self.piece_selectionnee.deplacement(dx, dy)
+
+            # On release, try to place automatically (drop)
+            if self.dragging and pyxel.btnr(pyxel.MOUSE_BUTTON_LEFT):
+                self.dragging = False
+                plateau_after, success = self.piece_selectionnee.place_on_plateau()
+                if not success:
+                    pyxel.play(3,34)
+                    self.alert_message = "Placement impossible!"
+                    self.alert_timer = self.alert_duration
+                else:
+                    # Mark as placed and moved
+                    self.plateau = plateau_after
+                    self.pieces_jouables[self.index_piece_selectionnee][1] = True
+                    self.pieces_jouables[self.index_piece_selectionnee][2] = True
+                    pyxel.play(3,36)
+                    pyxel.play(3,37)
 
         if pyxel.btn(pyxel.KEY_C):
                 for piece in self.pieces_jouables :
@@ -765,6 +824,16 @@ class Piece:
         self.etat_deplacement = False
         self.cos_actuelles = self.cos_de_départ()
 
+    def _begin_move_if_needed(self):
+        """HOTFIX: If the piece is currently placed on the board, pick it up
+        by clearing its previous footprint and switch to moving state.
+        This prevents placing the same piece multiple times on the board."""
+        if not self.etat_deplacement:
+            for x, y in self.cos_actuelles:
+                if 0 <= x < len(self.plateau) and 0 <= y < len(self.plateau[0]):
+                    self.plateau[x][y] = 0
+            self.etat_deplacement = True
+
     def cos_de_départ(self):
         coordinates = []
         for i, row in enumerate(self.patron):
@@ -774,20 +843,13 @@ class Piece:
         return coordinates
     
     def place_on_Dplateau(self):
+        # HOTFIX: never mutate main plateau here; Dplateau is just an overlay
         for i in range(len(self.Dplateau)):
             for j in range(len(self.Dplateau[0])):
                 self.Dplateau[i][j] = 0
-
-        if self.etat_deplacement:
-            for x, y in self.cos_actuelles:
+        for x, y in self.cos_actuelles:
+            if 0 <= x < len(self.Dplateau) and 0 <= y < len(self.Dplateau[0]):
                 self.Dplateau[x][y] = self.numero
-
-        if not self.etat_deplacement:
-            for x, y in self.cos_actuelles:
-                self.plateau[x][y] = 0
-                self.Dplateau[x][y] = self.numero
-                self.etat_deplacement = True
-
         return self.Dplateau
     
     def test_placement(self):
@@ -821,42 +883,43 @@ class Piece:
                 self.plateau[x][y] = 0
         self.etat_deplacement = True
 
-    def deplacement(self, dy, dx):
+    def deplacement(self, dx, dy):
+        # HOTFIX: interpret params as (dx, dy). Update only if within bounds and not colliding
+        # Ensure we pick up the piece before moving to avoid duplicate placement.
+        self._begin_move_if_needed()
         self.place_on_Dplateau()
-
         old_coordinates = self.cos_actuelles.copy()
         new_coordinates = []
-
         for x, y in self.cos_actuelles:
-            new_x, new_y = x + dx, y + dy
+            new_x, new_y = x + dy, y + dx  # y=row moves by dy; x=col moves by dx
             new_coordinates.append([new_x, new_y])
-
-        if all(0 <= new_x < len(self.plateau) and 0 <= new_y < len(self.plateau[0]) for new_x, new_y in new_coordinates):
+        if all(0 <= nx < len(self.plateau) and 0 <= ny < len(self.plateau[0]) for nx, ny in new_coordinates):
             self.cos_actuelles = new_coordinates
             return self.place_on_Dplateau(), True
-        
         self.cos_actuelles = old_coordinates
         return self.place_on_Dplateau(), False
     
     def rotate(self):
+        # HOTFIX: rotate 90° CW around bounding-box top-left to avoid anchor index bugs
+        # Ensure we pick up the piece before rotating.
+        self._begin_move_if_needed()
         self.place_on_Dplateau()
-        if self.numero in [6,8,4,5,10]:
-            self.rotation_anchor = self.cos_actuelles[1]
-        if self.numero in [1, 2, 3, 7, 9, 11, 12]:
-            self.rotation_anchor = self.cos_actuelles[2]
-        anchor_x = self.rotation_anchor[0]
-        anchor_y = self.rotation_anchor[1]
-        translated_coordinates = [[x - anchor_x, y - anchor_y] for x, y in self.cos_actuelles]
-        rotated_coordinates = [[y, -x] for x, y in translated_coordinates]
-        final_coordinates = [[x + anchor_x, y + anchor_y] for x, y in rotated_coordinates]
-
-        if all(0 <= x < len(self.plateau) and 0 <= y < len(self.plateau[0]) for x, y in final_coordinates):
-            self.cos_actuelles = final_coordinates
+        old = self.cos_actuelles.copy()
+        min_x = min(x for x, _ in old)
+        min_y = min(y for _, y in old)
+        norm = [[x - min_x, y - min_y] for x, y in old]
+        rot = [[y, -x] for x, y in norm]
+        min_x2 = min(x for x, _ in rot)
+        min_y2 = min(y for _, y in rot)
+        final = [[x - min_x2 + min_x, y - min_y2 + min_y] for x, y in rot]
+        if all(0 <= x < len(self.plateau) and 0 <= y < len(self.plateau[0]) for x, y in final):
+            self.cos_actuelles = final
             return self.place_on_Dplateau(), True
-        else:
-            return self.place_on_Dplateau(), False
+        return self.place_on_Dplateau(), False
         
     def symetrie(self):
+        # Ensure we pick up the piece before mirroring.
+        self._begin_move_if_needed()
         self.place_on_Dplateau()
         old_coordinates = self.cos_actuelles.copy()
 
@@ -871,7 +934,6 @@ class Piece:
         if all(0 <= x < len(self.plateau) and 0 <= y < len(self.plateau[0]) for x, y in symetrie_coordinates):
             self.cos_actuelles = symetrie_coordinates
             return self.place_on_Dplateau(), True
-        
         self.cos_actuelles = old_coordinates
         return self.place_on_Dplateau(), False
 
