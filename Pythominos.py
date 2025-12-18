@@ -872,7 +872,7 @@ class Piece:
             self.cos_actuelles = symetrie_coordinates
             return self.place_on_Dplateau(), True
         
-        self.cos_actuelles = old_coordinates
+            self.cos_actuelles = old_coordinates
         return self.place_on_Dplateau(), False
 
 def create_pieces(plateau):
