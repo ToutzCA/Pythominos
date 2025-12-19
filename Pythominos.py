@@ -934,7 +934,8 @@ class Piece:
         if all(0 <= x < len(self.plateau) and 0 <= y < len(self.plateau[0]) for x, y in symetrie_coordinates):
             self.cos_actuelles = symetrie_coordinates
             return self.place_on_Dplateau(), True
-        self.cos_actuelles = old_coordinates
+        
+            self.cos_actuelles = old_coordinates
         return self.place_on_Dplateau(), False
 
 def create_pieces(plateau):
